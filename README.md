@@ -1,14 +1,15 @@
 # SYN Port Scanner with AI Analysis
 
-A Python-based TCP port scanner that checks whether a target host's port is **open**, **closed**, or **filtered** — then uses an AI model (GPT-4o-mini via Azure) to analyze the result and explain the security implications.
+A Python-based TCP port scanner that checks whether a target host's port is **open**, **closed**, or **filtered** — then uses an AI model (GPT-4o-mini via Azure) to analyze open ports and explain the security implications.
 
 ---
 
 ## Features
 
 - **Host liveness check** before scanning
-- **TCP connect scan** to determine port status
-- **AI-powered analysis** of each scan result (powered by OpenAI / Azure inference)
+- **Single port scan** or **sequential port range scan**
+- **AI-powered analysis** of open ports (powered by GPT-4o-mini via Azure)
+- **Cross-platform API key detection** — works on Windows, Linux, and macOS
 - Runs in a continuous loop until stopped with `Ctrl+C`
 
 ---
@@ -16,7 +17,7 @@ A Python-based TCP port scanner that checks whether a target host's port is **op
 ## Requirements
 
 - Python 3.7+
-- An OpenAI-compatible API key (Azure inference endpoint)
+- An API key for the Azure OpenAI inference endpoint
 
 Install dependencies:
 
@@ -26,57 +27,67 @@ pip install -r requirements.txt
 
 ---
 
-## Setup
+## Setup — API Key
 
-1. **Clone the repository:**
+The script will automatically detect your API key. It checks in this order:
 
+1. **Environment variable** `OPENAI_API_KEY` (recommended)
+2. **Saved key file** (`~/.syn_scanner_key` on Linux/macOS, `%USERPROFILE%\.syn_scanner_key` on Windows)
+3. **Manual input** at runtime — with an option to save it for future use
+
+### Set the environment variable permanently
+
+**Linux:**
 ```bash
-git clone https://github.com/YOUR_USERNAME/syn-scanner.git
-cd syn-scanner
+echo 'export OPENAI_API_KEY="your_key_here"' >> ~/.bashrc && source ~/.bashrc
 ```
 
-2. **Set your API key as an environment variable:**
-
+**macOS:**
 ```bash
-# Linux / macOS
-export OPENAI_API_KEY="your_api_key_here"
-
-# Windows (CMD)
-set OPENAI_API_KEY=your_api_key_here
-
-# Windows (PowerShell)
-$env:OPENAI_API_KEY="your_api_key_here"
+echo 'export OPENAI_API_KEY="your_key_here"' >> ~/.zshrc && source ~/.zshrc
 ```
 
-> ⚠️ Never hardcode your API key directly in the script.
-
-3. **Run the scanner:**
-
-```bash
-python syn-scan.py
+**Windows (CMD):**
+```cmd
+setx OPENAI_API_KEY "your_key_here"
 ```
+
+**Windows (PowerShell):**
+```powershell
+$env:OPENAI_API_KEY="your_key_here"
+```
+
+> If no key is provided, the script still runs but AI analysis will be disabled.
 
 ---
 
 ## Usage
 
+```bash
+python syn-scan.py
 ```
-Enter the Target IP/Hostname: scanme.nmap.org
-[-] Target host is online
-Enter the Target port: 80
-[-]Port Open.
-[-]Ai Analyzing......
-[-] Port 80 typically runs HTTP web services, making it a common target for attacks like SQL injection,
-    cross-site scripting (XSS), and directory traversal. An open port 80 can expose the server to
-    unencrypted traffic interception if HTTPS is not enforced.
+
+```
+[-]Enter the Target IP/Hostname: scanme.nmap.org
+[-]Host is alive.
+++++++++++++__Menu__+++++++++++++
+[-]1.Single Scan
+[-]2.Sequential Scan
+[-]Type Ctrl+C(for exit)
++++++++++++++++++++++++++++++++++
+[-]Enter choice (1-2): 1
+[-]Enter the Target port: 80
+[-]Port 80 Open.
+[-] AI Analyzing open port service risks...
+[-] Port 80 runs HTTP web services and is a common target for attacks like SQL injection and XSS.
 ```
 
 ---
 
 ## ⚠️ Legal Disclaimer
 
-This tool is intended for **educational purposes** and **authorized security testing only**.  
-Scanning hosts without explicit permission is **illegal** in most jurisdictions.  
+This tool is intended for **educational purposes** and **authorized security testing only**.
+Scanning hosts without explicit permission is **illegal** in most jurisdictions.
 The author is not responsible for any misuse of this tool.
 
 ---
