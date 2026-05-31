@@ -1,7 +1,7 @@
+from network_utils import packet, is_host_alive, hoststatus, grab_banner
 import sys
 import os
 import platform
-import subprocess
 from openai import OpenAI
 import socket
 import errno
@@ -48,7 +48,6 @@ def get_api_key():
         if save == "y":
             with open(key_file, "w") as f:
                 f.write(api_key)
-            # Restrict file permissions on Linux/macOS
             if system != "Windows":
                 os.chmod(key_file, 0o600)
             print(f"[-] Key saved to {key_file}")
@@ -66,7 +65,7 @@ else:
     ai_enabled = False
 
 # ─── Functions ────────────────────────────────────────────────────────────────
-def port_analyze(port, status):
+def port_analyze(port, status, banner_info="None"):
     if not ai_enabled:
         return "AI analysis disabled (no API key)."
     try:
@@ -78,33 +77,18 @@ def port_analyze(port, status):
                 "content":(
                     "You are a network security assistant analyzing a port scan result. "
                     "If the port status is 'open', summarize what service runs there and its biggest security risk. "
+                    "Identify the application name and version if visible, and map its highest-severity known CVE or security risk. "
                     "If the port status is 'Closed' or 'filtered', do NOT list security risks for an active service. "
                     "Instead, explain what the closed/filtered status means for the attacker trying to scan it. "
                     "Keep your response to a maximum of 2 sentences."
                 )},
                 {"role": "user",
-                 "content": f"Port {port} is {status}. Analyze it."}
+                 "content": f"Port {port} is {status}. Banner found: '{banner_info}'. Analyze it."}
             ]
         )
         return response.choices[0].message.content
     except Exception as e:
         return f"AI analysis failed: {e}"
-
-def packet(target_ip, target_port):
-    soc = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    soc.settimeout(0.5)
-    result = soc.connect_ex((target_ip, target_port))
-    soc.close()
-    return result
-
-def is_host_alive(target_ip):
-    s_result = packet(target_ip, 80)
-    if s_result == 0 or s_result == errno.ECONNREFUSED or s_result == 10061:
-        return True
-    return False
-
-def hoststatus(target_ip):
-    return "true" if is_host_alive(target_ip) else "false"
 
 # ─── Main Program ─────────────────────────────────────────────────────────────
 try:
@@ -155,8 +139,11 @@ try:
                 status = "filtered"
 
             if status == "open":
+                print("[-] Grabbing service banner...")
+                banner_info = grab_banner(target_IP, target_port)
+                print(f"[-] Service Banner: {banner_info}")
                 print("[-] AI Analyzing open port service risks...")
-                ai_result = port_analyze(target_port, status)
+                ai_result = port_analyze(target_port, status, banner_info)
                 print(f"[-] {ai_result}\n")
             else:
                 print()
