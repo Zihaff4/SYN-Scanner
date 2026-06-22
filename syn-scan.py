@@ -1,98 +1,38 @@
 from network_utils import packet, is_host_alive, hoststatus, grab_banner
 import sys
-import os
-import platform
 from openai import OpenAI
 import socket
 import errno
 import time
-
-# ─── API Key Detection (cross-platform) ───────────────────────────────────────
-def get_api_key():
-    # 1. Check environment variable first (works on all OS)
-    api_key = os.environ.get("OPENAI_API_KEY")
-    if api_key:
-        return api_key
-
-    system = platform.system()
-
-    # 2. Try reading from a saved key file (cross-platform fallback)
-    if system == "Windows":
-        key_file = os.path.join(os.environ.get("USERPROFILE", ""), ".syn_scanner_key")
-    else:
-        key_file = os.path.expanduser("~/.syn_scanner_key")
-
-    if os.path.exists(key_file):
-        with open(key_file, "r") as f:
-            api_key = f.read().strip()
-        if api_key:
-            print("[-] API key loaded from saved key file.")
-            return api_key
-
-    # 3. Ask the user to enter it manually
-    print("\n[!] OPENAI_API_KEY not found in environment variables.")
-    print("[!] You can set it permanently by following these steps:")
-    if system == "Windows":
-        print("    CMD:        setx OPENAI_API_KEY \"your_key_here\"")
-        print("    PowerShell: $env:OPENAI_API_KEY=\"your_key_here\"")
-    elif system == "Darwin":
-        print("    macOS:  echo 'export OPENAI_API_KEY=\"your_key_here\"' >> ~/.zshrc && source ~/.zshrc")
-    else:
-        print("    Linux:  echo 'export OPENAI_API_KEY=\"your_key_here\"' >> ~/.bashrc && source ~/.bashrc")
-
-    print()
-    api_key = input("[?] Enter your API key now to continue (or press Enter to skip AI): ").strip()
-
-    if api_key:
-        save = input("[?] Save key to file for future use? (y/n): ").strip().lower()
-        if save == "y":
-            with open(key_file, "w") as f:
-                f.write(api_key)
-            if system != "Windows":
-                os.chmod(key_file, 0o600)
-            print(f"[-] Key saved to {key_file}")
-        return api_key
-
-    return None
-
-# ─── Initialize API client ────────────────────────────────────────────────────
-api_key = get_api_key()
-if api_key:
-    client = OpenAI(api_key=api_key, base_url="https://models.inference.ai.azure.com")
-    ai_enabled = True
-else:
-    print("[!] No API key provided. AI analysis will be disabled.\n")
-    ai_enabled = False
-
-# ─── Functions ────────────────────────────────────────────────────────────────
+#For Ai
+client = OpenAI(base_url="https://models.inference.ai.azure.com")
+#def area
 def port_analyze(port, status, banner_info="None"):
-    if not ai_enabled:
-        return "AI analysis disabled (no API key)."
-    try:
-        response = client.chat.completions.create(
-            model="gpt-4o-mini",
-            temperature=0.0,
-            messages=[
-                {"role": "system",
-                "content":(
-                    "You are a network security assistant analyzing a port scan result. "
-                    "If the port status is 'open', summarize what service runs there and its biggest security risk. "
-                    "Identify the application name and version if visible, and map its highest-severity known CVE or security risk. "
-                    "If the port status is 'Closed' or 'filtered', do NOT list security risks for an active service. "
-                    "Instead, explain what the closed/filtered status means for the attacker trying to scan it. "
-                    "Keep your response to a maximum of 2 sentences."
-                )},
-                {"role": "user",
-                 "content": f"Port {port} is {status}. Banner found: '{banner_info}'. Analyze it."}
-            ]
-        )
-        return response.choices[0].message.content
-    except Exception as e:
-        return f"AI analysis failed: {e}"
+    response = client.chat.completions.create(
+        model="gpt-4o-mini",
+        temperature=0.0,
+        messages=[
+            {"role": "system",
+            "content":(
+                "You are a network security assistant analyzing a port scan result. "
+                "If the port status is 'open', summarize what service runs there and its biggest security risk. "
+                "Identify the application name and version if visible, and map its highest-severity known CVE or security risk. "
+                "If the port status is 'Closed' or 'filtered', do NOT list security risks for an active service. "
+                "Instead, explain what the closed/filtered status means for the attacker trying to scan it. "
+                "Keep your response to a maximum of 2 sentences."
+            ) 
+             },
+            {"role": "user",
+             "content": f"Port {port} is {status}. Banner found: '{banner_info}'. Analyze it."}
+        ]
+    )
+    ai_replay = response.choices[0].message.content
+    return ai_replay
 
-# ─── Main Program ─────────────────────────────────────────────────────────────
+#main program
 try:
     while True:
+        #SYN-Script
         target = input("[-]Enter the Target IP/Hostname: ")
         target_IP = socket.gethostbyname(target)
         hs_result = hoststatus(target_IP)
@@ -100,10 +40,10 @@ try:
             print("[-]Host is alive.")
         else:
             print("[-]Host is offline.")
-            continue
-
+            continue  
+        
         time.sleep(1.0)
-        # Menu
+        #Menu
         print("++++++++++++__Menu__+++++++++++++")
         print("[-]1.Single Scan")
         print("[-]2.Sequential Scan")
@@ -125,30 +65,31 @@ try:
             print("[-]Invalid choice.")
             continue
 
-        # For each port
+        #for each port
         for target_port in ports_to_scan:
             result = packet(target_IP, target_port)
+            #Scan logic
             if result == 0:
-                print(f"[-]Port {target_port} Open.")
-                status = "open"
+                print("[-]Port Open.")
+                status = "open"                  
             elif result == errno.ECONNREFUSED or result == 10061:
-                print(f"[-]Port {target_port} Closed.")
-                status = "Closed"
+                print("[-]Port Closed.")
+                status = "Closed"                  
             else:
-                print(f"[-]Port {target_port} Filtered.")
+                print("[-]Port filtered.")
                 status = "filtered"
-
+            #prints Ai's answer only if the port is open.
             if status == "open":
+                #Banner analyzing
                 print("[-] Grabbing service banner...")
                 banner_info = grab_banner(target_IP, target_port)
                 print(f"[-] Service Banner: {banner_info}")
-                print("[-] AI Analyzing open port service risks...")
+                #Ai analyzing
+                print("[-] Ai Analyzing open port service risks...")
                 ai_result = port_analyze(target_port, status, banner_info)
                 print(f"[-] {ai_result}\n")
             else:
                 print()
-
-        time.sleep(1.0)
-
+        time.sleep(1.0)      
 except KeyboardInterrupt:
     print("\n[-]Script stopped by user.")
